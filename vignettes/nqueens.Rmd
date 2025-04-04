@@ -1,0 +1,251 @@
+---
+title: "N queens puzzle"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{N queens puzzle}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = FALSE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(satire)
+library(ggplot2)
+```
+
+```{r echo=FALSE}
+library(ggplot2)
+board <- function(n = 4, cols = c('grey95', 'grey80')) {
+  b <- expand.grid(x = seq(n), y = seq(n))
+  b$col <- with(b, ifelse(y %% 2 == 0, x %% 2 == 0, x %% 2 == 1))
+  ggplot(b) +
+    geom_raster(aes(x, y, fill = col)) + 
+    scale_fill_manual(values = cols, guide = 'none') +
+    coord_equal() + 
+    scale_y_reverse() +
+    theme_void()
+}
+```
+
+
+## The N-queens puzzle
+
+The [N queens](https://en.wikipedia.org/wiki/Eight_queens_puzzle) puzzle is a challenge
+to place `N` queens on an `N x N` chessboard so that no queens threaten each other.
+
+This requires that no two queens share the same row, column or diagonal.  For an 8x8
+chessboard there are 92 solutions - one possible solution is pictured below.
+
+```{r echo=FALSE}
+queens8 <- data.frame(
+  row = 1:8,
+  col = c(6, 4, 7, 1, 8, 2, 5, 3),
+  nm = 'Q'
+)
+
+board(8) + 
+  geom_text(data = queens8, aes(col, row, label = nm)) + 
+  labs(title = "A solution to the 8-queens problem") +
+  theme(plot.title = element_text(hjust = 0.5, vjust = 0))
+```
+
+In this vignette, the N-queens problem (with N = 4) will be formulated and
+solved using SAT techniques.
+
+## The 4-queens puzzle
+
+This vignette will formulate and then solve the 4-queens puzzle i.e. placing
+4 queens on a 4x4 chessboard so that no queens threaten each other.
+
+First take an empty 4x4 chessboard
+
+```{r echo=FALSE}
+board(4)
+```
+
+A Boolean variable (`q11` - `q44`) is assigned to each square.  When a variable is `true` it means
+that there is a queen at this location, and `false` means there is no queen at
+this location.
+
+```{r echo=FALSE}
+N <- 4
+queens    <- expand.grid(row = seq(N), col = seq(N)) 
+queens$nm <- with(queens, paste0("q", row, col))
+
+board() + 
+  geom_text(data = queens, aes(col, row, label = nm))
+```
+
+If 4 queens are placed at the following locations, then this is definitely **not**
+a solution as the lower two queens can attach each other.
+
+```{r echo=FALSE}
+queens_bad <- queens[queens$nm %in% c('q11', 'q24', 'q32', 'q43'),]
+
+board() + 
+  annotate(
+    'segment', 
+    y = 3, x = 2, yend = 4, xend = 3,
+    color    = 'red', 
+    linetype = 2
+  ) + 
+  geom_label(data = queens_bad, aes(col, row, label = nm))
+```
+
+
+## What constraints exist?
+
+To place 4 queens such that no queens can attack requires:
+
+* Each row can only contain 1 queen
+* Each column can only contain 1 queen
+* Each diagonal can only contain 1 queen (must be true for diagonals in both directions)
+
+## Defining the problem
+
+```{r}
+sat <- sat_new()
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Impose a constraint on the cardinality of each row
+# i.e. Exactly 1 member of each row must be true
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_exactly_one(sat, c("q11", "q12", "q13", "q14"))
+sat_card_exactly_one(sat, c("q21", "q22", "q23", "q24"))
+sat_card_exactly_one(sat, c("q31", "q32", "q33", "q34"))
+sat_card_exactly_one(sat, c("q41", "q42", "q43", "q44"))
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Similarly, there can be only 1 queen in each column
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_exactly_one(sat, c("q11", "q21", "q31", "q41"))
+sat_card_exactly_one(sat, c("q12", "q22", "q32", "q42"))
+sat_card_exactly_one(sat, c("q13", "q23", "q33", "q43"))
+sat_card_exactly_one(sat, c("q14", "q24", "q34", "q44"))
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Similarly, there can be only 1 queen in each diagonal
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_atmost_one(sat, c('q21', 'q12'))
+sat_card_atmost_one(sat, c('q31', 'q22', 'q13'))
+sat_card_atmost_one(sat, c('q41', 'q32', 'q23', 'q14'))
+sat_card_atmost_one(sat, c('q42', 'q33', 'q24'))
+sat_card_atmost_one(sat, c('q43', 'q34'))
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Repeat for diagonals in the other direction
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_atmost_one(sat, c('q13', 'q24'))
+sat_card_atmost_one(sat, c('q12', 'q23', 'q34'))
+sat_card_atmost_one(sat, c('q11', 'q22', 'q33', 'q44'))
+sat_card_atmost_one(sat, c('q21', 'q32', 'q43'))
+sat_card_atmost_one(sat, c('q31', 'q42'))
+
+
+sat
+```
+
+
+## Solve 
+
+There are only 16 variables in this problem which means an exhaustive search
+only requires checking 2^16 combinations.  This is within the realm of the 
+naive solver which pre-allocates all combinations and evaluates them in parallel
+using standard R evaluation.
+
+```{r}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Solve using the built-in, naive, brute-force SAT solver
+# There are 2 solutions!
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+solns <- sat_solve_naive(sat)
+nrow(solns)
+```
+
+
+```{r}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Solution:
+#   - columns = variable names
+#   - row = a solution i.e. the boolean value of each variable in order to 
+#           satisfy the problem
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+solns
+```
+
+
+```{r}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Map these booleans to get the names of the variables which are TRUE
+# i.e. the location of the queens
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+solns <- apply(solns, 1, \(x) names(solns)[which(x)], simplify = FALSE)
+solns
+```
+
+
+## Plot solution #1
+
+```{r}
+solns[[1]]
+```
+
+
+```{r echo = FALSE}
+library(ggplot2)
+
+# a data.frame of the location on the board of the Queens for solution 1
+sol_df <- queens[queens$nm %in% solns[[1]], ]
+
+board() +
+  geom_text(data = sol_df, aes(col, row), label = 'Q') +
+  labs(
+    title    = "N-Queens problem",
+    subtitle = "N = 4.  Solution #1"
+  )
+```
+
+### Plot solution #2
+
+```{r}
+solns[[2]]
+```
+
+
+```{r echo = FALSE}
+
+# a data.frame of the location on the board of the Queens for solution 1
+sol_df <- queens[queens$nm %in% solns[[2]], ]
+
+board() + 
+  geom_text(data = sol_df, aes(col, row), label = 'Q') +
+  labs(
+    title    = "N-Queens problem",
+    subtitle = "N = 4.  Solution #2"
+  )
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

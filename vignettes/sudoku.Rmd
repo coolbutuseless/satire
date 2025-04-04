@@ -1,0 +1,385 @@
+---
+title: "Sudoku"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Sudoku}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = FALSE,
+  comment = "  "
+)
+```
+
+```{r setup, echo=FALSE}
+library(satire)
+library(ggplot2)
+```
+
+
+```{r echo=FALSE}
+board <- function(n = 2) {
+  b0 <- expand.grid(x = seq(n^2), y = seq(n^2))
+  b1 <- expand.grid(x = seq(n) * n - (n-1)/2, y = seq(n) * n - (n-1)/2)
+  ggplot() + 
+    geom_tile(data = b0, aes(x, y), width = n^0, height = n^0, fill = NA, color = 'black', linewidth = 0.25) + 
+    geom_tile(data = b1, aes(x, y), width = n^1, height = n^1, fill = NA, color = 'black', linewidth = 1) + 
+    coord_equal() + 
+    theme_void() + 
+    theme(plot.title = element_text(hjust = 0.5, size = 15)) + 
+    scale_y_reverse()
+}
+```
+
+
+[Sudoku](https://en.wikipedia.org/wiki/Sudoku) are a logic-based, combinatorial
+number placement puzzle.  The objective is to fill a grid with digits such that each column,
+row and sub-grid contains all the required digits.
+
+This is usually a 9x9 grid, with 9 3x3 sub-grids.
+
+
+## Solving a 4x4 sudoku with SAT
+
+In this vignette, this 4x4 sudoku will be solved using SAT techniques.
+
+```{r echo=FALSE}
+prob <- data.frame(
+  row = c(1, 2, 2, 4),
+  col = c(2, 2, 3, 4),
+  val = c(3, 2, 3, 4)
+)
+
+board() + 
+  geom_text(data = prob, aes(col, row, label = val), size = 12) + 
+  labs(title = "Problem to solve") +
+  theme(plot.title = element_text(hjust = 0.5, size = 15))
+```
+
+
+
+## Nomenclature
+
+To start, assign a name to each cell.
+
+E.g. `c23` is the cell in the **second** row, **third** column.
+
+
+```{r echo=FALSE}
+cells <- expand.grid(row = 1:4, col = 1:4)
+cells$nm <- with(cells, paste0("c", row, col))
+board() + 
+  geom_text(data = cells, aes(col, row, label = nm)) + 
+  labs(title = "Cell names") +
+  theme(title = element_text(hjust = 0.5))
+```
+
+
+Each cell is represented by **4** variables - one for each possible digit that can 
+exist at the location.
+
+E.g. 
+
+* `c231` indicates that the number `1` is present in the cell in the second row, third column.
+* `c413` indicates that the number `3` is present in the cell in the fourth row, first column.
+
+
+```{r echo=FALSE, fig.height = 4, fig.width = 4}
+vars <- expand.grid(row = 1:4, col = 1:4)
+vars$nm <- vapply(seq(nrow(vars)), \(i) {
+  cell <- paste0('c', vars$row[i], vars$col[i])
+  cell <- paste0(cell, 1:4, collapse = ", ")
+  strwrap(cell, width = 15) |> paste(collapse = "\n")
+}, character(1))
+
+
+board() + 
+  geom_text(data = vars, aes(col, row, label = nm), size = 3) + 
+  labs(title = "Variable names") +
+  theme(title = element_text(hjust = 0.5))
+```
+
+
+## Constraints
+
+* Each cell must contain one (and only one) of the numbers 1-4
+    * E.g. `c111` and `c112` cannot both be true
+* Each of the numbers (1-4) must appear in each row, each column, and within 
+  each of the 2x2 sub-squares
+* In the definition of this particular problem, there is a `3` in the second column
+  of the first row.  This means that `c123` is true  (and `c121`, `c122` and `c124` are false)
+    * Similarly: `c222`, `c233` and `c444` are true as they are the starting 
+      state of the problem
+
+## Defining a SAT problem - building blocks
+
+A SAT problem is defined by combinations of expressions about the variables.
+Each of these expressions is constructed as a string.
+
+### Building block: at least one of a set of variables must be true.
+
+If `a`, `b` and `c` are Boolean variables, to state that at least one of them 
+must be true is:
+
+`a | b | c`
+
+To add this constraint to a `sat` object, use the cardinality helper function
+i.e. `sat_card_atleast_one()` 
+
+```{r}
+sat <- sat_new()
+sat <- sat_card_atleast_one(sat, c('a', 'b', 'c'))
+sat$exprs
+```
+
+
+### Building block: at most one of a set of variables must be true
+
+To express that only one variable is true out of a set of variables, one 
+method is to state that "for all possible pairings, one of them must be false".
+
+If `a`, `b` and `c` are Boolean variables, to state that at most one of them 
+must be true is:
+
+`(!a | !b) & (!a | !c) & (!b | !c)`
+
+To add this constraint to a `sat` object, use the cardinality helper function
+i.e. `sat_card_atmost_one()` 
+
+```{r}
+sat <- sat_new()
+sat <- sat_card_atmost_one(sat, c('a', 'b', 'c'))
+sat$exprs
+```
+
+### Building block: exactly one of a set of variables must be true
+
+A common way to express that exactly one out of a set of variables is true 
+is to state that "at least one is true" **and** "at most one is true" at the
+same time i.e.
+
+`(a | b | c) & (!a | !b) & (!a | !c) & (!b | !c)`
+
+To add this constraint to a `sat` object, use the cardinality helper function
+i.e. `sat_card_exactly_one()` 
+
+```{r}
+sat <- sat_new()
+sat <- sat_card_exactly_one(sat, c('a', 'b', 'c'))
+sat$exprs
+```
+
+
+
+
+
+## Defining the SAT problem with `{satire}`
+
+
+```{r}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Create a new SAT problem
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat <- sat_new()
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# For each cell in the puzzle, it must contain exactly one of 1,2,3 or 4.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_exactly_one(sat, c('c111', 'c112', 'c113', 'c114'))
+sat_card_exactly_one(sat, c('c121', 'c122', 'c123', 'c124'))
+sat_card_exactly_one(sat, c('c131', 'c132', 'c133', 'c134'))
+sat_card_exactly_one(sat, c('c141', 'c142', 'c143', 'c144'))
+
+sat_card_exactly_one(sat, c('c211', 'c212', 'c213', 'c214'))
+sat_card_exactly_one(sat, c('c221', 'c222', 'c223', 'c224'))
+sat_card_exactly_one(sat, c('c231', 'c232', 'c233', 'c234'))
+sat_card_exactly_one(sat, c('c241', 'c242', 'c243', 'c244'))
+
+sat_card_exactly_one(sat, c('c311', 'c312', 'c313', 'c314'))
+sat_card_exactly_one(sat, c('c321', 'c322', 'c323', 'c324'))
+sat_card_exactly_one(sat, c('c331', 'c332', 'c333', 'c334'))
+sat_card_exactly_one(sat, c('c341', 'c342', 'c343', 'c344'))
+
+sat_card_exactly_one(sat, c('c411', 'c412', 'c413', 'c414'))
+sat_card_exactly_one(sat, c('c421', 'c422', 'c423', 'c424'))
+sat_card_exactly_one(sat, c('c431', 'c432', 'c433', 'c434'))
+sat_card_exactly_one(sat, c('c441', 'c442', 'c443', 'c444'))
+```
+
+
+```{r}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Column 1 must have at least one 1, one 2, one 3 and one 4
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_atleast_one(sat, c('c111', 'c211', 'c311', 'c411'))
+sat_card_atleast_one(sat, c('c112', 'c212', 'c312', 'c412'))
+sat_card_atleast_one(sat, c('c113', 'c213', 'c313', 'c413'))
+sat_card_atleast_one(sat, c('c114', 'c214', 'c314', 'c414'))
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Column 2 must have at least one 1, one 2, one 3 and one 4
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_atleast_one(sat, c('c121', 'c221', 'c321', 'c421'))
+sat_card_atleast_one(sat, c('c122', 'c222', 'c322', 'c422'))
+sat_card_atleast_one(sat, c('c123', 'c223', 'c323', 'c423'))
+sat_card_atleast_one(sat, c('c124', 'c224', 'c324', 'c424'))
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Column 3 must have at least one 1, one 2, one 3 and one 4
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_atleast_one(sat, c('c131', 'c231', 'c331', 'c431'))
+sat_card_atleast_one(sat, c('c132', 'c232', 'c332', 'c432'))
+sat_card_atleast_one(sat, c('c133', 'c233', 'c333', 'c433'))
+sat_card_atleast_one(sat, c('c134', 'c234', 'c334', 'c434'))
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Column 4 must have at least one 1, one 2, one 3 and one 4
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_atleast_one(sat, c('c141', 'c241', 'c341', 'c441'))
+sat_card_atleast_one(sat, c('c142', 'c242', 'c342', 'c442'))
+sat_card_atleast_one(sat, c('c143', 'c243', 'c343', 'c443'))
+sat_card_atleast_one(sat, c('c144', 'c244', 'c344', 'c444'))
+```
+
+
+```{r}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Row 1 must have at least one 1, one 2, one 3 and one 4
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_atleast_one(sat, c('c111', 'c121', 'c131', 'c141'))
+sat_card_atleast_one(sat, c('c112', 'c122', 'c132', 'c142'))
+sat_card_atleast_one(sat, c('c113', 'c123', 'c133', 'c143'))
+sat_card_atleast_one(sat, c('c114', 'c124', 'c134', 'c144'))
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Row 2 must have at least one 1, one 2, one 3 and one 4
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_atleast_one(sat, c('c211', 'c221', 'c231', 'c241'))
+sat_card_atleast_one(sat, c('c212', 'c222', 'c232', 'c242'))
+sat_card_atleast_one(sat, c('c213', 'c223', 'c233', 'c243'))
+sat_card_atleast_one(sat, c('c214', 'c224', 'c234', 'c244'))
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Row 3 must have at least one 1, one 2, one 3 and one 4
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_atleast_one(sat, c('c311', 'c321', 'c331', 'c341'))
+sat_card_atleast_one(sat, c('c312', 'c322', 'c332', 'c342'))
+sat_card_atleast_one(sat, c('c313', 'c323', 'c333', 'c343'))
+sat_card_atleast_one(sat, c('c314', 'c324', 'c334', 'c344'))
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Row 4 must have at least one 1, one 2, one 3 and one 4
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_atleast_one(sat, c('c411', 'c421', 'c431', 'c441'))
+sat_card_atleast_one(sat, c('c412', 'c422', 'c432', 'c442'))
+sat_card_atleast_one(sat, c('c413', 'c423', 'c433', 'c443'))
+sat_card_atleast_one(sat, c('c414', 'c424', 'c434', 'c444'))
+```
+
+
+```{r}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Top-left sub-square must have at least one 1, one 2, one 3 and one 4
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_atleast_one(sat, c('c111', 'c211', 'c121', 'c221')) 
+sat_card_atleast_one(sat, c('c112', 'c212', 'c122', 'c222')) 
+sat_card_atleast_one(sat, c('c113', 'c213', 'c123', 'c223')) 
+sat_card_atleast_one(sat, c('c114', 'c214', 'c124', 'c224')) 
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Bottom-left sub-square must have at least one 1, one 2, one 3 and one 4
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_atleast_one(sat, c('c311', 'c411', 'c321', 'c421')) 
+sat_card_atleast_one(sat, c('c312', 'c412', 'c322', 'c422')) 
+sat_card_atleast_one(sat, c('c313', 'c413', 'c323', 'c423')) 
+sat_card_atleast_one(sat, c('c314', 'c414', 'c324', 'c424')) 
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Top-right sub-square must have at least one 1, one 2, one 3 and one 4
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_atleast_one(sat, c('c131', 'c231', 'c141', 'c241')) 
+sat_card_atleast_one(sat, c('c132', 'c232', 'c142', 'c242')) 
+sat_card_atleast_one(sat, c('c133', 'c233', 'c143', 'c243')) 
+sat_card_atleast_one(sat, c('c134', 'c234', 'c144', 'c244')) 
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Bottom-right sub-square must have at least one 1, one 2, one 3 and one 4
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_atleast_one(sat, c('c331', 'c431', 'c341', 'c441')) 
+sat_card_atleast_one(sat, c('c332', 'c432', 'c342', 'c442')) 
+sat_card_atleast_one(sat, c('c333', 'c433', 'c343', 'c443')) 
+sat_card_atleast_one(sat, c('c334', 'c434', 'c344', 'c444'))
+```
+
+
+```{r}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The initially defined numbers in the puzzle are set to TRUE 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_add_exprs(sat, "c123 & c222 & c233 & c444")
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Ready to solve
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat
+```
+
+## Solving
+
+There are 64 variables in this SAT problem, which means a brute-force approach
+would have to try ~1.8E19 combinations which is not feasible.
+
+Instead, use the [DPLL](https://en.wikipedia.org/wiki/DPLL_algorithm)-based solver 
+which uses unit propagation, pure-literal
+elimination, pruning and backtracking to find a solution.
+
+
+The solution returned is the TRUE/FALSE state of every variable.
+It is up to the user to interpret what this means in the context of their problem
+
+```{r}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# 'sol' is a data.frame.  Column names are the variables, and each row
+# is a solution to the problem.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sol <- sat_solve_dpll(sat)
+sol
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The actual solution needed for this sudoku is where the actual numbers
+# exist, I.e. where the variables are true
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sol <- names(sol)[unlist(sol)]
+sol
+```
+
+
+Plotting these true variables gives the solution to the sudoku
+
+```{r echo=FALSE}
+vars <- expand.grid(row = 1:4, col = 1:4, n = 1:4)
+vars$nm <- with(vars, paste0("c", row, col, n))
+
+vars <- vars[vars$nm %in% sol, ]
+
+board() + 
+  geom_text(data = vars, aes(col, row, label = nm)) + 
+  labs(title = "'true' variables in the solution")
+
+board() + 
+  geom_text(data = vars, aes(col, row, label = n), size = 12) + 
+  labs(title = "Solution")
+```
+
+
+
+
+
+
+
+
+
+

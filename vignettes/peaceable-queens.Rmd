@@ -1,0 +1,455 @@
+---
+title: "Peaceable Queens"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Peaceable Queens}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = FALSE,
+  comment = "#>"
+)
+```
+
+
+```{r setup}
+library(purrr)
+library(satire)
+```
+
+## The Peaceable Queens Puzzle
+
+The [Peaceable Queens puzzle](https://oeis.org/A250000)
+    
+    Peaceable coexisting armies of queens: the maximum number m such that m white queens and m black queens can coexist on an n X n chessboard without attacking each other. 
+
+## Nomenclature
+
+```{r echo=FALSE}
+library(ggplot2)
+board <- function(n = 5, cols = c('grey95', 'grey80')) {
+  b <- expand.grid(x = seq(n), y = seq(n))
+  b$col <- with(b, ifelse(y %% 2 == 0, x %% 2 == 0, x %% 2 == 1))
+  ggplot(b) +
+    geom_raster(aes(x, y, fill = col)) + 
+    scale_fill_manual(values = cols, guide = 'none') +
+    coord_equal() + 
+    scale_y_reverse() +
+    theme_void()
+}
+```
+
+
+```{r echo=FALSE}
+N <- 5
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# White queens
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+queens    <- expand.grid(row = seq(N), col = seq(N)) 
+queens$nm <- with(queens, paste0("w", row, col))
+
+board() + 
+  geom_text(data = queens, aes(col, row, label = nm))
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Black queens
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+queens    <- expand.grid(row = seq(N), col = seq(N)) 
+queens$nm <- with(queens, paste0("b", row, col))
+
+board() + 
+  geom_text(data = queens, aes(col, row, label = nm))
+```
+
+
+
+
+
+
+```{r echo=FALSE, fig.width = 5, fig.height = 5}
+N <- 6
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# White queens
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+queens    <- expand.grid(row = seq(N), col = seq(N)) 
+queens$nm <- with(
+  queens, 
+  ifelse(
+    row > 5, 
+    paste0("wcol", col),
+    ifelse(
+      col > 5,
+      paste0("wrow", row),
+      paste0("w", row, col)
+    )
+  )
+)
+queens <- queens[queens$nm != 'wcol6', ] 
+
+board() + 
+  geom_text(data = queens, aes(col, row, label = nm)) +
+  expand_limits(x = 6.2)
+```
+
+
+
+
+
+```{r echo=FALSE, fig.width = 5, fig.height = 5}
+N <- 6
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# White queens
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+queens    <- expand.grid(row = seq(N), col = seq(N)) 
+queens$nm <- with(
+  queens, 
+  ifelse(
+    row ==4 & col > 5, 
+    "wdown3",
+    ifelse(
+      col > 5,
+      "",
+      ifelse(
+        col==1 & row > 5,
+        "wup6",   
+        ifelse(
+          row > 5,
+          "",
+          paste0("w", row, col)
+        )
+      )
+    )
+  )
+)
+
+board() + 
+  geom_text(data = queens, aes(col, row, label = nm)) + 
+  annotate('segment', x = 3, y = 1, xend = 6, yend = 4, color = 'red' , linetype = 2) + 
+  annotate('segment', x = 1, y = 6, xend = 5, yend = 2, color = 'blue', linetype = 2) +
+  expand_limits(x = 6.2)
+```
+
+
+Define some character matrices to help generate boolean statements
+
+```{r}
+white <- matrix(c(
+  'w11', 'w12', 'w13', 'w14', 'w15', 
+  'w21', 'w22', 'w23', 'w24', 'w25', 
+  'w31', 'w32', 'w33', 'w34', 'w35', 
+  'w41', 'w42', 'w43', 'w44', 'w45', 
+  'w51', 'w52', 'w53', 'w54', 'w55' 
+), 5, 5, byrow = TRUE)
+
+
+black <- matrix(c(
+  'b11', 'b12', 'b13', 'b14', 'b15', 
+  'b21', 'b22', 'b23', 'b24', 'b25', 
+  'b31', 'b32', 'b33', 'b34', 'b35', 
+  'b41', 'b42', 'b43', 'b44', 'b45', 
+  'b51', 'b52', 'b53', 'b54', 'b55' 
+), 5, 5, byrow = TRUE)
+
+
+diag_up <- matrix(c(
+  1, 2, 3, 4, 5, 
+  2, 3, 4, 5, 6,
+  3, 4, 5, 6, 7,
+  4, 5, 6, 7, 8,
+  5, 6, 7, 8, 9
+), 5, 5, byrow = TRUE)
+
+diag_down <- diag_up[, 5:1]
+```
+
+### Row/column indicator variables (for white)
+
+Row indicator variables (e.g. `wrow1`) are variables which signal that there
+exists a queen (a white one) in that row.
+
+That is, if a square in a row contains a queen, then the indicator variable
+should also be set. In Boolean terms "a square having a queen *implies* that the
+row variable is true".
+
+To write that a variable *implies* that another is true:
+
+`w11 -> wrow1`
+
+This says "If w11 is TRUE then wrow1 must be TRUE".
+
+This is true for all locations in the first row i.e.
+
+`(w11 -> wrow1) & (w12 -> wrow1) & (w13 -> wrow1) & (w14 -> wrow1) & (w15 -> wrow1)`
+
+This logic is repeated for all row and column indicator variables for white queens
+
+```{r}
+white_rows <- map(1:5, \(row) {
+  glue::glue("w{row}{1:5} -> wrow{row}")
+}) |> flatten_chr()
+white_rows
+
+white_cols <- map(1:5, \(col) {
+  glue::glue("w{1:5}{col} -> wcol{col}")
+}) |> flatten_chr()
+white_cols
+```
+
+
+### Row/column indicator variables (for black)
+
+This logic is repeated for the indicate variables for **black** queens in each 
+row and column
+
+```{r}
+black_rows <- map(1:5, \(row) {
+  glue::glue("b{row}{1:5} -> brow{row}")
+}) |> flatten_chr()
+black_rows
+
+black_cols <- map(1:5, \(col) {
+  glue::glue("b{1:5}{col} -> bcol{col}")
+}) |> flatten_chr()
+black_cols
+```
+
+### Exclusivity of white/black indicato variables
+
+In order to force the constraint that white and black queens are not in 
+a position to attack each other, it must be the case that `wrow1` and `brow1`
+cannot both be true at the same time i.e. one of them must be false.
+
+So for all row/column indicator variables, add logic that the black indicator variable
+cannot be true at the same time as the equivalent white indicator variable.s
+
+```{r}
+exclusive_rows <- glue::glue("!wrow{1:5} | !brow{1:5}")
+exclusive_rows
+
+exclusive_cols <- glue::glue("!wcol{1:5} | !bcol{1:5}")
+exclusive_cols
+```
+
+
+# Diagonal indicator variables
+
+A similar process is carried out for each diagonal on the board. That is, an 
+indicator variable for each diagonal is true when one of its squares contains
+the queen of the specified color.  Then exclusivity in the indicator variables 
+is enforced so that a single diagonal cannot contain both black and white queens.
+
+```{r}
+white_diag_up <- map(2:8, \(diag) {
+  vars <- white[which(diag_up == diag)]
+  glue::glue("{vars} -> wup{diag}")
+}) |> flatten_chr()
+white_diag_up
+
+white_diag_down <- map(2:8, \(diag) {
+  vars <- white[which(diag_down == diag)]
+  glue::glue("{vars} -> wdown{diag}")
+}) |> flatten_chr()
+white_diag_down
+
+black_diag_up <- map(2:8, \(diag) {
+  vars <- black[which(diag_up == diag)]
+  glue::glue("{vars} -> bup{diag}")
+}) |> flatten_chr()
+black_diag_up
+
+black_diag_down <- map(2:8, \(diag) {
+  vars <- black[which(diag_down == diag)]
+  glue::glue("{vars} -> bdown{diag}")
+}) |> flatten_chr()
+black_diag_down
+
+exclusive_diag_down <- glue::glue("!wdown{2:8} | !bdown{2:8}")
+exclusive_diag_down
+
+exclusive_diag_up   <- glue::glue("!wup{2:8} | !bup{2:8}")
+exclusive_diag_up
+```
+
+## Creating the SAT problem in `{satire}`
+
+```{r}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Create a SAT problem
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat <- sat_new()
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Add all the expressions 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+all_exprs <- c(
+  white_rows, white_cols,
+  black_rows, black_cols,
+  exclusive_rows,
+  exclusive_cols,
+  white_diag_up, white_diag_down,
+  black_diag_up, black_diag_down,
+  exclusive_diag_down,
+  exclusive_diag_up
+)
+# all_exprs <- vapply(all_exprs, as_cnf, character(1))
+sat_add_exprs(sat, all_exprs)
+sat
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The solution must also contain 4 queens of each color
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sat_card_exactly_k(sat, white, 4)
+sat_card_exactly_k(sat, black, 4)
+sat
+```
+
+Constraining the solution to a particular count of queens adds 1200 new dummy 
+variables and 2500 new boolean statements!
+
+
+## Solving
+
+Solving via the pure R [DPLL](https://en.wikipedia.org/wiki/DPLL_algorithm) 
+solver (`sat_solver_dpll()`) takes around 20 seconds on an M2 Mac.
+
+The form of the solution is a data.frame where each column is a variable in the
+problem, and each row is a solution.
+
+
+```{r eval=FALSE}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Takes about 20s on an M2 mac
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sol <- sat_solve_dpll(sat)
+sol
+```
+
+```{r echo=FALSE}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# I'm baking in the solution to the file, as I do not want a 20second
+# render time for this document on CRAN
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sol <- structure(list(w11 = FALSE, wrow1 = TRUE, w12 = TRUE, w13 = FALSE, 
+    w14 = TRUE, w15 = FALSE, w21 = FALSE, wrow2 = TRUE, w22 = FALSE, 
+    w23 = FALSE, w24 = FALSE, w25 = TRUE, w31 = FALSE, wrow3 = FALSE, 
+    w32 = FALSE, w33 = FALSE, w34 = FALSE, w35 = FALSE, w41 = FALSE, 
+    wrow4 = TRUE, w42 = FALSE, w43 = FALSE, w44 = FALSE, w45 = TRUE, 
+    w51 = FALSE, wrow5 = FALSE, w52 = FALSE, w53 = FALSE, w54 = FALSE, 
+    w55 = FALSE, wcol1 = FALSE, wcol2 = TRUE, wcol3 = FALSE, 
+    wcol4 = TRUE, wcol5 = TRUE, b11 = FALSE, brow1 = FALSE, b12 = FALSE, 
+    b13 = FALSE, b14 = FALSE, b15 = FALSE, b21 = FALSE, brow2 = FALSE, 
+    b22 = FALSE, b23 = FALSE, b24 = FALSE, b25 = FALSE, b31 = TRUE, 
+    brow3 = TRUE, b32 = FALSE, b33 = TRUE, b34 = FALSE, b35 = FALSE, 
+    b41 = FALSE, brow4 = FALSE, b42 = FALSE, b43 = FALSE, b44 = FALSE, 
+    b45 = FALSE, b51 = TRUE, brow5 = TRUE, b52 = FALSE, b53 = TRUE, 
+    b54 = FALSE, b55 = FALSE, bcol1 = TRUE, bcol2 = FALSE, bcol3 = TRUE, 
+    bcol4 = FALSE, bcol5 = FALSE, wup2 = TRUE, wup3 = FALSE, 
+    wup4 = TRUE, wup5 = FALSE, wup6 = TRUE, wup7 = FALSE, wup8 = TRUE, 
+    wdown2 = TRUE, wdown3 = FALSE, wdown4 = TRUE, wdown5 = FALSE, 
+    wdown6 = TRUE, wdown7 = FALSE, wdown8 = TRUE, bup2 = FALSE, 
+    bup3 = TRUE, bup4 = FALSE, bup5 = TRUE, bup6 = FALSE, bup7 = TRUE, 
+    bup8 = FALSE, bdown2 = FALSE, bdown3 = TRUE, bdown4 = FALSE, 
+    bdown5 = TRUE, bdown6 = FALSE, bdown7 = TRUE, bdown8 = FALSE), class = "data.frame", row.names = c(NA, 
+-1L))
+sol
+```
+
+
+The solution to the puzzle is where the queens exist on the board i.e. the
+variables which are TRUE
+
+
+```{r echo=FALSE}
+ss <- names(sol)[unlist(sol)]
+ss <- grep("^(w|b)\\d+", ss, value = TRUE)
+ss
+```
+
+Plotting these queen locations shows the solution!
+
+```{r echo=FALSE, fig.width = 6, fig.height = 6}
+N <- 5
+solqueens    <- expand.grid(row = seq(N), col = seq(N)) 
+solqueens$w <- with(solqueens, paste0("w", row, col))
+solqueens$b <- with(solqueens, paste0("b", row, col))
+wq <- solqueens[solqueens$w %in% ss, ]
+bq <- solqueens[solqueens$b %in% ss, ]
+
+
+board() + 
+  geom_label(data = wq, aes(col, row, label = 'Q'), fill = 'black', color = 'white', size = 12) + 
+  geom_label(data = bq, aes(col, row, label = 'Q'), fill = 'white', color = 'black', size = 12)
+```
+
+
+## Solving with an external solver
+
+The built-in solvers in the `{satire}` package are written in pure R.  They are 
+for demonstration and education, and are easily out-classed by external solvers
+such as minisat, picosat, kissat etc.
+
+#### DIMACS export
+
+The easiest way to use an external solver is to export the problem in DIMACS
+format and run the solver manually.
+
+e.g.
+
+```{r eval=FALSE}
+writeLines(sat$dimacs, "pqueens.cnf")
+# Run a sat solver at the command line
+# satsolver pqueens.cnf
+```
+
+
+
+```{r eval=FALSE, echo=FALSE}
+library(picosatire)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Solver in {picosat}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+sol_literals <- pico_simple_solve(sat$literals)
+head(sol_literals, 100)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Convert the solution to logical values, and keep only the variables
+# representing queen positions which are TRUE
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+picosol <- sat_literals_to_lgl(sat, sol_literals)
+ss <- names(picosol)[unlist(picosol)]
+ss <- grep("(w|b)\\d+", ss, value = TRUE)
+ss
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Plot
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+N <- 5
+solqueens    <- expand.grid(row = seq(N), col = seq(N)) 
+solqueens$w <- with(solqueens, paste0("w", row, col))
+solqueens$b <- with(solqueens, paste0("b", row, col))
+wq <- solqueens[solqueens$w %in% ss, ]
+bq <- solqueens[solqueens$b %in% ss, ]
+
+
+board() + 
+  geom_text(data = wq, aes(col, row, label = '\u2655'), size = 20) + 
+  geom_text(data = bq, aes(col, row, label = '\u265b'), size = 20)
+```
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,33 @@
+Package: satire
+Type: Package
+Title: Define and Solve Boolean Satisfiability ('SAT') Problems
+Version: 1.0.0
+Authors@R: c(
+    person("Mike", "Cheng", role = c("aut", "cre", 'cph'), email = "mikefc@coolbutuseless.com"))
+Maintainer: Mike Cheng <mikefc@coolbutuseless.com>
+URL: https://github.com/coolbutuseless/satire
+BugReports: https://github.com/coolbutuseless/satire/issues
+Description: Boolean satisifiability ('SAT') tests whether there are
+    sets of variables which satisfy a Boolean formula. This package 
+    provides tools for defining 'SAT' problems and includes a 
+    'DPLL'-based 'SAT' solver based upon Davis & Putnam (1960) 
+    <doi:10.1145/321033.321034>.  Built-in capabilities for Tseytin transformation (Tseytin (1968)
+    <doi:10.1007/978-3-642-81955-1_28>) allows for the input of 
+    complex Boolean formula.  Cardinalility constraints are implemented
+    using commander variables (Klieber & Kwon (2007) <https://www.cs.cmu.edu/~wklieber/papers/2007_efficient-cnf-encoding-for-selecting-1.pdf>)
+    and sequential counters (Sinz (2005) <doi:10.1007/11564751_73>).  Tools for reading
+    and writing 'DIMACS' files are also included.
+License: MIT + file LICENSE
+Encoding: UTF-8
+RoxygenNote: 7.3.2
+Imports:
+  stringr
+Suggests: 
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    ggplot2,
+    purrr,
+    glue
+Config/testthat/edition: 3
+VignetteBuilder: knitr
