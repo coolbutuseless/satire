@@ -26,7 +26,23 @@ The [Peaceable Queens puzzle](https://oeis.org/A250000)
     
     Peaceable coexisting armies of queens: the maximum number m such that m white queens and m black queens can coexist on an n X n chessboard without attacking each other. 
 
+I.e. how can you place equal armies of black and white queens on a chessboard, 
+and not have the opposing armies attack each other?
+
 ## Nomenclature
+
+Constructing a SAT problem involves setting up a lot of Boolean variables, 
+assigning meaning to them, and defining relationships between them.
+
+At a high level, the constraints on this problem are:
+
+* equal number of black and white queens
+* a white queen on any cell means that a black queen cannot also be there (and
+vide versa)
+* a white queen o row, column or diagonal means that a black queen cannot
+also be there (and vice versa).
+
+This problem will be solved for a 5x5 chess board.
 
 ```{r echo=FALSE}
 library(ggplot2)
@@ -42,6 +58,12 @@ board <- function(n = 5, cols = c('grey95', 'grey80')) {
 }
 ```
 
+#### Individual squares
+
+There will be 25 variables
+to indicate the position of white queens on the board (`w11` to `w55`), and 
+similarly for black queens.  When a variable is TRUE, it means that a queen of 
+that color exists at that location.
 
 ```{r echo=FALSE}
 N <- 5
@@ -67,8 +89,12 @@ board() +
 ```
 
 
+#### Row variables
 
+For both the black and white queens, define row variables which are TRUE
+when any square in that row contains a queen of that color.  
 
+Similar define column variables and diagonal variables for each queen color.
 
 
 ```{r echo=FALSE, fig.width = 5, fig.height = 5}
@@ -137,7 +163,7 @@ board() +
 ```
 
 
-Define some character matrices to help generate boolean statements
+#### Basic pieces in R
 
 ```{r}
 white <- matrix(c(
@@ -169,7 +195,10 @@ diag_up <- matrix(c(
 diag_down <- diag_up[, 5:1]
 ```
 
-### Row/column indicator variables (for white)
+
+## Boolean Expressions 
+
+### Expressions constraining the row/column indicator variables (for white)
 
 Row indicator variables (e.g. `wrow1`) are variables which signal that there
 exists a queen (a white one) in that row.
@@ -203,9 +232,9 @@ white_cols
 ```
 
 
-### Row/column indicator variables (for black)
+### Expressions constraining the row/column indicator variables (for black)
 
-This logic is repeated for the indicate variables for **black** queens in each 
+This logic is repeated for the indicator variables for **black** queens in each 
 row and column
 
 ```{r}
@@ -220,14 +249,14 @@ black_cols <- map(1:5, \(col) {
 black_cols
 ```
 
-### Exclusivity of white/black indicato variables
+### Exclusivity of white/black indicator variables
 
 In order to force the constraint that white and black queens are not in 
 a position to attack each other, it must be the case that `wrow1` and `brow1`
 cannot both be true at the same time i.e. one of them must be false.
 
-So for all row/column indicator variables, add logic that the black indicator variable
-cannot be true at the same time as the equivalent white indicator variable.s
+So for all row/column indicator variables, add logic that the black indicator variables
+cannot be true at the same time as the equivalent white indicator variables.
 
 ```{r}
 exclusive_rows <- glue::glue("!wrow{1:5} | !brow{1:5}")
@@ -238,7 +267,7 @@ exclusive_cols
 ```
 
 
-# Diagonal indicator variables
+### Expressions constraining the diagonals
 
 A similar process is carried out for each diagonal on the board. That is, an 
 indicator variable for each diagonal is true when one of its squares contains
@@ -298,12 +327,17 @@ all_exprs <- c(
   exclusive_diag_down,
   exclusive_diag_up
 )
-# all_exprs <- vapply(all_exprs, as_cnf, character(1))
+
 sat_add_exprs(sat, all_exprs)
 sat
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The solution must also contain 4 queens of each color
+# The solution must also contain the same number of queens of each color
+#
+# If we try to make this N = 5 queens, then the problem is unsatisfiable - 
+# i.e. sat_solve_dpll() will return NULL (after 10 minutes!)
+# This means there is no solution for 5 queens of each color.
+# So let's try it with 4 queens of each color
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 sat_card_exactly_k(sat, white, 4)
 sat_card_exactly_k(sat, black, 4)
@@ -311,7 +345,7 @@ sat
 ```
 
 Constraining the solution to a particular count of queens adds 1200 new dummy 
-variables and 2500 new boolean statements!
+variables and 2500 new Boolean statements!
 
 
 ## Solving
