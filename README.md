@@ -47,6 +47,21 @@ transformation](https://en.wikipedia.org/wiki/Tseytin_transformation).
 - `read_dimacs()` read in a problem from a standard DIMACs-formatted
   file
 
+## SAT Solvers
+
+The two SAT solvers included in this package (`sat_solve_naive()` &
+`sat_solve_dpll()`) are written in base R and are really for
+demonstration and education purposes. They are only suitable for
+smaller/easier problems as they are comparatively quite slow.
+
+For larger problems, either export to DIMACS format and use another
+solver of your choice, or try the following companion R packages:
+
+- [picosatire](https://github.com/coolbutuseless/picosatire) a wrapper
+  for the C SAT solver library PicoSAT
+- [kissatire](https://github.com/coolbutuseless/kissatire) a wrapper for
+  the C SAT solver library Kissat (not compatible with windows)
+
 ## Installation
 
 <!-- This package can be installed from CRAN -->
@@ -278,5 +293,5 @@ sat_solve_dpll(sat)
 - <https://rbcborealis.com/research-blogs/tutorial-9-sat-solvers-i-introduction-and-applications/>
 - <https://smt.st/>
 - <https://personal.cis.strath.ac.uk/robert.atkey/cs208/converting-to-cnf.html> -
-  a good vide on transofrming formulas and the Tseytin transformation.
+  a good video on transforming formulas and the Tseytin transformation.
 - <https://www.inf.ed.ac.uk/teaching/courses/inf1/cl/2020/week8/>
