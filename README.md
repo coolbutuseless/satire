@@ -11,7 +11,7 @@
 <!-- badges: end -->
 
 `{satire}` is a package for defining Boolean satisfiability problems
-(i.e. SAT problems) and includes two pure R SAT solvers.
+(i.e. SAT problems) and includes two SAT solvers (written in R).
 
 A key feature of this package is that allows for the definition of the
 SAT problem by specifying the clauses of the Boolean formula as logical
