@@ -4,17 +4,18 @@
 \alias{sat_literals_to_lgl}
 \title{Convert a sequence of integer literals to named logical vector}
 \usage{
-sat_literals_to_lgl(sat, literals, keep_dummy = FALSE)
+sat_literals_to_lgl(sat, literals, remove = "^dummy")
 }
 \arguments{
 \item{sat}{\code{sat} object as created by \code{\link{sat_new}()}}
 
 \item{literals}{literals}
 
-\item{keep_dummy}{Should dummy variables be kept?  Default: FALSE.
-Dummy variables are those variables added internally (e.g. when adding
-cardinatlity constraints).  Dummy variables all start with the 
-prefix "dummy".}
+\item{remove}{regular expression for variables to remove when blocking solutions
+and assembling values to return. Default: "^dummy" will block all
+variables starting with the word "dummy" (as this is how the 'satire' 
+package automatically creates dummy variables.)
+If NULL no variables will be removed.}
 }
 \value{
 Named logical vector indicating the names and boolean values of the 

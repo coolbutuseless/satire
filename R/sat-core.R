@@ -391,10 +391,11 @@ sat_block_solution <- function(sat, literals, verbosity = 0L) {
 #' 
 #' @inheritParams sat_add_literals
 #' @param literals literals
-#' @param keep_dummy Should dummy variables be kept?  Default: FALSE.  
-#'        Dummy variables are those variables added internally (e.g. when adding
-#'        cardinatlity constraints).  Dummy variables all start with the 
-#'        prefix "dummy".
+#' @param remove regular expression for variables to remove when blocking solutions
+#'        and assembling values to return. Default: "^dummy" will block all
+#'        variables starting with the word "dummy" (as this is how the 'satire' 
+#'        package automatically creates dummy variables.)
+#'        If NULL no variables will be removed.
 #' @return Named logical vector indicating the names and boolean values of the 
 #'         given literals
 #' @examples
@@ -405,7 +406,7 @@ sat_block_solution <- function(sat, literals, verbosity = 0L) {
 #' sat_literals_to_lgl(sat, c(1, 3, -4))
 #' @export
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-sat_literals_to_lgl <- function(sat, literals, keep_dummy = FALSE) {
+sat_literals_to_lgl <- function(sat, literals, remove = "^dummy") {
   assert_is_sat_prob(sat)
   
   stopifnot(is.numeric(literals))
@@ -426,8 +427,9 @@ sat_literals_to_lgl <- function(sat, literals, keep_dummy = FALSE) {
   
   names(lgl) <- nms
   
-  if (!keep_dummy) {
-    lgl <- lgl[!startsWith(names(lgl), "dummy")]
+  if (!is.null(remove) && nchar(remove) > 0) {
+    keep <- !grepl(remove, names(lgl))
+    lgl <- lgl[keep]
   }
   
   

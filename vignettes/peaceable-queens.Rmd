@@ -361,7 +361,7 @@ problem, and each row is a solution.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Takes about 20s on an M2 mac
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-sol <- sat_solve_dpll(sat)
+sol <- sat_solve_dpll(sat, remove = "^dummy|row|col|up|down")
 sol
 ```
 
@@ -370,28 +370,18 @@ sol
 # I'm baking in the solution to the file, as I do not want a 20second
 # render time for this document on CRAN
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-sol <- structure(list(w11 = FALSE, wrow1 = TRUE, w12 = TRUE, w13 = FALSE, 
-    w14 = TRUE, w15 = FALSE, w21 = FALSE, wrow2 = TRUE, w22 = FALSE, 
-    w23 = FALSE, w24 = FALSE, w25 = TRUE, w31 = FALSE, wrow3 = FALSE, 
-    w32 = FALSE, w33 = FALSE, w34 = FALSE, w35 = FALSE, w41 = FALSE, 
-    wrow4 = TRUE, w42 = FALSE, w43 = FALSE, w44 = FALSE, w45 = TRUE, 
-    w51 = FALSE, wrow5 = FALSE, w52 = FALSE, w53 = FALSE, w54 = FALSE, 
-    w55 = FALSE, wcol1 = FALSE, wcol2 = TRUE, wcol3 = FALSE, 
-    wcol4 = TRUE, wcol5 = TRUE, b11 = FALSE, brow1 = FALSE, b12 = FALSE, 
-    b13 = FALSE, b14 = FALSE, b15 = FALSE, b21 = FALSE, brow2 = FALSE, 
-    b22 = FALSE, b23 = FALSE, b24 = FALSE, b25 = FALSE, b31 = TRUE, 
-    brow3 = TRUE, b32 = FALSE, b33 = TRUE, b34 = FALSE, b35 = FALSE, 
-    b41 = FALSE, brow4 = FALSE, b42 = FALSE, b43 = FALSE, b44 = FALSE, 
-    b45 = FALSE, b51 = TRUE, brow5 = TRUE, b52 = FALSE, b53 = TRUE, 
-    b54 = FALSE, b55 = FALSE, bcol1 = TRUE, bcol2 = FALSE, bcol3 = TRUE, 
-    bcol4 = FALSE, bcol5 = FALSE, wup2 = TRUE, wup3 = FALSE, 
-    wup4 = TRUE, wup5 = FALSE, wup6 = TRUE, wup7 = FALSE, wup8 = TRUE, 
-    wdown2 = TRUE, wdown3 = FALSE, wdown4 = TRUE, wdown5 = FALSE, 
-    wdown6 = TRUE, wdown7 = FALSE, wdown8 = TRUE, bup2 = FALSE, 
-    bup3 = TRUE, bup4 = FALSE, bup5 = TRUE, bup6 = FALSE, bup7 = TRUE, 
-    bup8 = FALSE, bdown2 = FALSE, bdown3 = TRUE, bdown4 = FALSE, 
-    bdown5 = TRUE, bdown6 = FALSE, bdown7 = TRUE, bdown8 = FALSE), class = "data.frame", row.names = c(NA, 
--1L))
+sol <- structure(list(w11 = FALSE, w12 = TRUE, w13 = FALSE, w14 = TRUE, 
+    w15 = FALSE, w21 = FALSE, w22 = FALSE, w23 = FALSE, w24 = FALSE, 
+    w25 = TRUE, w31 = FALSE, w32 = FALSE, w33 = FALSE, w34 = FALSE, 
+    w35 = FALSE, w41 = FALSE, w42 = FALSE, w43 = FALSE, w44 = FALSE, 
+    w45 = TRUE, w51 = FALSE, w52 = FALSE, w53 = FALSE, w54 = FALSE, 
+    w55 = FALSE, b11 = FALSE, b12 = FALSE, b13 = FALSE, b14 = FALSE, 
+    b15 = FALSE, b21 = FALSE, b22 = FALSE, b23 = FALSE, b24 = FALSE, 
+    b25 = FALSE, b31 = TRUE, b32 = FALSE, b33 = TRUE, b34 = FALSE, 
+    b35 = FALSE, b41 = FALSE, b42 = FALSE, b43 = FALSE, b44 = FALSE, 
+    b45 = FALSE, b51 = TRUE, b52 = FALSE, b53 = TRUE, b54 = FALSE, 
+    b55 = FALSE), class = "data.frame", row.names = c(NA, -1L
+))
 sol
 ```
 

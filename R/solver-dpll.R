@@ -323,7 +323,7 @@ sat_solve_dpll_single <- function(sat, verbosity = 0L) {
 #' @export
 #' @family SAT solvers
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-sat_solve_dpll <- function(sat, max_solutions = 1, remove_dummy = TRUE, verbosity = 0L) {
+sat_solve_dpll <- function(sat, max_solutions = 1, remove = "^dummy", verbosity = 0L) {
 
   start <- Sys.time()
   
@@ -338,7 +338,14 @@ sat_solve_dpll <- function(sat, max_solutions = 1, remove_dummy = TRUE, verbosit
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Determine the indicies of the variables which are not dummy variables.
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  not_dummy_idxs <- which(!grepl("^dummy", sat$names))
+  if (is.null(remove) || nchar(remove) == 0) {
+    keep_idxs <- seq_along(sat$names)
+  } else {
+    keep_idxs <- which(!grepl(remove, sat$names)) 
+  }  
+  if (length(keep_idxs) == 0) {
+    stop("No variable names to return. Empty problem, or 'remove' too aggressive")
+  }
   
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Keep track of solutions (in logical format) and the solution hashes
@@ -410,7 +417,7 @@ sat_solve_dpll <- function(sat, max_solutions = 1, remove_dummy = TRUE, verbosit
       # so that the next time the solver is run this exact solution cannot 
       # re-occur
       #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      sat_block_solution(csat, soln_literals[not_dummy_idxs])
+      sat_block_solution(csat, soln_literals[keep_idxs])
       
       #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
       # Convert the named -1,1 values to a boolean vector
@@ -418,12 +425,10 @@ sat_solve_dpll <- function(sat, max_solutions = 1, remove_dummy = TRUE, verbosit
       lgl <- res > 0
       
       #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      # Remove dummy variables if requested
+      # Remove dummy variables 
       #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      if (remove_dummy) {
-        lgl <- lgl[not_dummy_idxs]
-        res <- res[not_dummy_idxs]
-      }
+      lgl <- lgl[keep_idxs]
+      res <- res[keep_idxs]
       
       #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
       # Add this solution only if it hasn't been seen before.

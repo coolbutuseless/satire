@@ -10,12 +10,11 @@
 #' would require allocation of 520 GB of memory.
 #' 
 #' @param sat SAT problem as created by \code{\link{sat_new}()}
-#' @param remove_dummy Remove dummy variables from result. Default: TRUE. Dummy 
-#'        variables are used in many places (e.g. cardinality constraints). These 
-#'        variables are not part of the user's problem statement, and most 
-#'        of the time should not be present in the solution.  A variable is
-#'        considered a dummy variable if it starts with the word "dummy".
-#' @param remove_dupes Remove duplicate solutions? Default: TRUE
+#' @param remove regular expression for variables to remove when blocking solutions
+#'        and assembling values to return. Default: "^dummy" will block all
+#'        variables starting with the word "dummy" (as this is how the 'satire' 
+#'        package automatically creates dummy variables.)
+#'        If NULL no variables will be removed.
 #' @param mem_limit only run problems if the estimated memory allocation is
 #'        less than this number of MB.  Default: 1024.  This is a guard 
 #'        to prevent catastrophic consequences of trying to allocate too much
@@ -33,7 +32,7 @@
 #' @export 
 #' @family SAT solvers
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-sat_solve_naive <- function(sat, remove_dummy = TRUE, remove_dupes = TRUE, mem_limit = 1024, verbosity = 0L) {
+sat_solve_naive <- function(sat, remove = "^dummy", mem_limit = 1024, verbosity = 0L) {
   
   assert_is_sat_prob(sat)
   
@@ -80,15 +79,14 @@ sat_solve_naive <- function(sat, remove_dummy = TRUE, remove_dupes = TRUE, mem_l
     return(NULL)
   }
   
-  if (remove_dummy) {
-    vars  <- sat$names[!grepl("^dummy", sat$names)]
-    solns <- solns[, vars, drop = FALSE]
+  if (!is.null(remove) && nchar(remove) > 0) {
+    keep  <- !grepl(remove, sat$names)
+    solns <- solns[, keep, drop = FALSE]
   }
   
-  if (remove_dupes) {
-    solns <- solns[!duplicated(solns), , drop = FALSE]
-  }
-  
+  # remove dupes
+  solns <- solns[!duplicated(solns), , drop = FALSE]
+
   rownames(solns) <- NULL
   solns
 }

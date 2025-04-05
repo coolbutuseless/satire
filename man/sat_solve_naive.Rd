@@ -4,24 +4,16 @@
 \alias{sat_solve_naive}
 \title{Naive, brute-force SAT solver with up-front memory allocation}
 \usage{
-sat_solve_naive(
-  sat,
-  remove_dummy = TRUE,
-  remove_dupes = TRUE,
-  mem_limit = 1024,
-  verbosity = 0L
-)
+sat_solve_naive(sat, remove = "^dummy", mem_limit = 1024, verbosity = 0L)
 }
 \arguments{
 \item{sat}{SAT problem as created by \code{\link{sat_new}()}}
 
-\item{remove_dummy}{Remove dummy variables from result. Default: TRUE. Dummy 
-variables are used in many places (e.g. cardinality constraints). These 
-variables are not part of the user's problem statement, and most 
-of the time should not be present in the solution.  A variable is
-considered a dummy variable if it starts with the word "dummy".}
-
-\item{remove_dupes}{Remove duplicate solutions? Default: TRUE}
+\item{remove}{regular expression for variables to remove when blocking solutions
+and assembling values to return. Default: "^dummy" will block all
+variables starting with the word "dummy" (as this is how the 'satire' 
+package automatically creates dummy variables.)
+If NULL no variables will be removed.}
 
 \item{mem_limit}{only run problems if the estimated memory allocation is
 less than this number of MB.  Default: 1024.  This is a guard 

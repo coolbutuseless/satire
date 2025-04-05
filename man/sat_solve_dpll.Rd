@@ -4,18 +4,18 @@
 \alias{sat_solve_dpll}
 \title{SAT solver using DPLL technique}
 \usage{
-sat_solve_dpll(sat, max_solutions = 1, remove_dummy = TRUE, verbosity = 0L)
+sat_solve_dpll(sat, max_solutions = 1, remove = "^dummy", verbosity = 0L)
 }
 \arguments{
 \item{sat}{SAT problem as created by \code{\link{sat_new}()}}
 
 \item{max_solutions}{maximum number of solutions to return. Default: 1}
 
-\item{remove_dummy}{Remove dummy variables from result. Default: TRUE. Dummy 
-variables are used in many places (e.g. cardinality constraints). These 
-variables are not part of the user's problem statement, and most 
-of the time should not be present in the solution.  A variable is
-considered a dummy variable if it starts with the word "dummy".}
+\item{remove}{regular expression for variables to remove when blocking solutions
+and assembling values to return. Default: "^dummy" will block all
+variables starting with the word "dummy" (as this is how the 'satire' 
+package automatically creates dummy variables.)
+If NULL no variables will be removed.}
 
 \item{verbosity}{verbosity level.  Default: 0}
 }
