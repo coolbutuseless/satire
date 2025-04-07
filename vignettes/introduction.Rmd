@@ -55,7 +55,26 @@ substitutions and applying [Tesytin transformation](https://en.wikipedia.org/wik
     * `sat$names`
     * `sat$exprs`
 * `read_dimacs()` read in a problem from a standard DIMACs-formatted file
+* SAT solvers
+    * `sat_solve_naive()` is a naive solver suitable for problems with ~20 variables
+    * `sat_solve_dpll()` implements basic [DPLL](https://en.wikipedia.org/wiki/DPLL_algorithm) solving techniques.  
+      This solver is suitable
+      for use in larger problems, but is written in base R and is not fast.
 
+
+## SAT Solvers
+
+The two SAT solvers included in this package (`sat_solve_naive()` & `sat_solve_dpll()`) are written in base R and are really for demonstration and education purposes.  They are
+only suitable for smaller/easier problems as they are comparatively quite slow.
+
+For larger problems, either export to DIMACS format and use another solver of your choice, 
+or try the following companion R packages:
+
+* [picosatire](https://github.com/coolbutuseless/picosatire) a wrapper for the C
+  SAT solver library PicoSAT
+* [kissatire](https://github.com/coolbutuseless/kissatire) a wrapper for the C
+  SAT solver library Kissat  (not compatible with windows)
+  
 
 
 ### SAT Example: Finding all possible work teams

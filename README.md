@@ -46,6 +46,14 @@ transformation](https://en.wikipedia.org/wiki/Tseytin_transformation).
   - `sat$exprs`
 - `read_dimacs()` read in a problem from a standard DIMACs-formatted
   file
+- SAT solvers
+  - `sat_solve_naive()` is a naive solver suitable for problems with ~20
+    variables
+  - `sat_solve_dpll()` implements basic
+    [DPLL](https://en.wikipedia.org/wiki/DPLL_algorithm) solving
+    techniques.  
+    This solver is suitable for use in larger problems, but is written
+    in base R and is not fast.
 
 ## SAT Solvers
 
